@@ -135,7 +135,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 
 	private void processFedCovWeights(ExecutionContext ec, MatrixObject mo1, MatrixObject mo2,
 		MatrixLineagePair moLin3) {
-		
+
 		FederatedRequest[] fr1 = mo1.getFedMapping().broadcastSliced(moLin3, false);
 
 		// the original instruction encodes weights as "pREADW", change to the new ID
@@ -240,7 +240,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 		for (int i = 0; i < ranges.length; i++) {
 			sizes[i] = ranges[i].getSize();
 		}
-		
+
 		// calculate global means
 		double totalMeanX = 0;
 		double totalMeanY = 0;
@@ -365,8 +365,8 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 			String divInstrOutput = incrementVar(sumInstr2Output, 1);
 			String divInstrInput1 = partsSum2[2].replace(partsSum2[2], sumInstr1Output + Lop.DATATYPE_PREFIX + "false");
 			String divInstrInput2 = partsSum2[3].replace(partsSum2[3], sumInstr2Output + Lop.DATATYPE_PREFIX + "false");
-			String divInstr = partsSum2[0] + Lop.OPERAND_DELIMITOR + partsSum2[1].replace("uak+", "/") 
-				+ Lop.OPERAND_DELIMITOR + divInstrInput1 + Lop.OPERAND_DELIMITOR + divInstrInput2 
+			String divInstr = partsSum2[0] + Lop.OPERAND_DELIMITOR + partsSum2[1].replace("uak+", "/")
+				+ Lop.OPERAND_DELIMITOR + divInstrInput1 + Lop.OPERAND_DELIMITOR + divInstrInput2
 				+ Lop.OPERAND_DELIMITOR + divInstrOutput + Lop.OPERAND_DELIMITOR + partsSum2[4];
 
 			FederatedRequest divFr1 = FederationUtils.callInstruction(
@@ -462,8 +462,8 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 		String divInstrOutput = incrementVar(sumInstr2Output, 1);
 		String divInstrInput1 = partsSum2[2].replace(partsSum2[2], sumInstr1Output + Lop.DATATYPE_PREFIX + "false");
 		String divInstrInput2 = partsSum2[3].replace(partsSum2[3], sumInstr2Output + Lop.DATATYPE_PREFIX + "false");
-		String divInstr = partsSum2[0] + Lop.OPERAND_DELIMITOR + partsSum2[1].replace("uak+", "/") + Lop.OPERAND_DELIMITOR 
-				+ divInstrInput1 + Lop.OPERAND_DELIMITOR + divInstrInput2 + Lop.OPERAND_DELIMITOR 
+		String divInstr = partsSum2[0] + Lop.OPERAND_DELIMITOR + partsSum2[1].replace("uak+", "/") + Lop.OPERAND_DELIMITOR
+				+ divInstrInput1 + Lop.OPERAND_DELIMITOR + divInstrInput2 + Lop.OPERAND_DELIMITOR
 				+ divInstrOutput + Lop.OPERAND_DELIMITOR + partsSum2[4];
 
 		FederatedRequest divFr1 = FederationUtils.callInstruction(
@@ -496,7 +496,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 
 		String[] parts = instString.split(Lop.OPERAND_DELIMITOR);
 		if (!instString.contains("pREADW")) {
-			String sumInstr = "CP"+Lop.OPERAND_DELIMITOR+"uak+" + Lop.OPERAND_DELIMITOR 
+			String sumInstr = "CP"+Lop.OPERAND_DELIMITOR+"uak+" + Lop.OPERAND_DELIMITOR
 				+ parts[4] + Lop.OPERAND_DELIMITOR + parts[5] + Lop.OPERAND_DELIMITOR + parts[6];
 
 			FederatedRequest sumFr = FederationUtils.callInstruction(
@@ -516,7 +516,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 		}
 		else {
 			String sumInstr = "CP"+Lop.OPERAND_DELIMITOR+"uak+"+Lop.OPERAND_DELIMITOR
-				+ String.valueOf(weightsID) + "·MATRIX·FP64" + Lop.OPERAND_DELIMITOR + parts[5] 
+				+ String.valueOf(weightsID) + "·MATRIX·FP64" + Lop.OPERAND_DELIMITOR + parts[5]
 				+ Lop.OPERAND_DELIMITOR + parts[6];
 			FederatedRequest sumFr = FederationUtils.callInstruction(
 				sumInstr,
@@ -567,7 +567,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 			return new FederatedResponse(FederatedResponse.ResponseType.SUCCESS, mb.covOperations(_op, _mo2));
 		}
 
-		@Override 
+		@Override
 		public Pair<String, LineageItem> getLineageItem(ExecutionContext ec) {
 			return null;
 		}
@@ -592,7 +592,7 @@ public class CovarianceFEDInstruction extends BinaryFEDInstruction {
 			return new FederatedResponse(FederatedResponse.ResponseType.SUCCESS, mb.covOperations(_op, _mo2, _weights));
 		}
 
-		@Override 
+		@Override
 		public Pair<String, LineageItem> getLineageItem(ExecutionContext ec) {
 			return null;
 		}
