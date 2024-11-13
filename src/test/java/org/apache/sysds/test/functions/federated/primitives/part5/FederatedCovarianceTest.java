@@ -216,7 +216,7 @@ public class FederatedCovarianceTest extends AutomatedTestBase {
 		getAndLoadTestConfiguration(TEST_NAME);
 
 		String HOME = SCRIPT_DIR + TEST_DIR;
-		
+
 		int r = rows / 4;
 		int c = cols;
 
@@ -228,7 +228,7 @@ public class FederatedCovarianceTest extends AutomatedTestBase {
 		double[][] X3 = getRandomMatrix(r, c, 1, 5, 1, 8);
 		double[][] X4 = getRandomMatrix(r, c, 1, 5, 1, 9);
 
-		// Create a 20x1 weights matrix 
+		// Create a 20x1 weights matrix
 		double[][] W = getRandomMatrix(rows, c, 0, 1, 1, 3);
 
 		MatrixCharacteristics mc = new MatrixCharacteristics(r, c, blocksize, r * c);
@@ -278,7 +278,7 @@ public class FederatedCovarianceTest extends AutomatedTestBase {
 						input("W"), expected("S")
 					};
 					runTest(null);
-					
+
 					// Run the dml script with federated matrices
 					fullDMLScriptName = HOME + TEST_NAME + ".dml";
 					programArgs = new String[] {"-stats", "100", "-nvargs",
@@ -331,7 +331,7 @@ public class FederatedCovarianceTest extends AutomatedTestBase {
 						"rows=" + rows, "cols=" + cols, "out_S=" + output("S")};
 					runTest(null);
 				}
-				
+
 			}
 			else {
 				// Create a random 20x1 input matrix
