@@ -25,20 +25,24 @@ import java.net.Socket;
 import java.util.function.BooleanSupplier;
 
 /**
- * Test helpers that block until a federated worker is accepting TCP connections on its port.
- *
- * <p>The federated worker opens its TCP port after Netty's {@code bind().sync()} returns; a successful
- * TCP connect to that port therefore indicates that the worker is ready to accept requests. The methods
- * here poll for that signal and throw {@link RuntimeException} on timeout or if the underlying
- * {@code Process}/{@code Thread} exits before the port becomes ready.
+ * Test helpers that block until a federated worker is accepting TCP connections on its port. The federated worker opens
+ * its TCP port after Netty's {@code bind().sync()} returns; a successful TCP connect to that port therefore indicates
+ * that the worker is ready to accept requests. The methods here poll for that signal and throw {@link RuntimeException}
+ * on timeout or if the underlying {@code Process}/{@code Thread} exits before the port becomes ready.
  */
 public final class FederatedWorkerUtils {
 
 	/** Sleep between successive poll rounds, in milliseconds. */
 	private static final int POLL_INTERVAL_MS = 25;
 
-	/** Per-attempt {@link Socket#connect} timeout, in milliseconds. */
-	private static final int CONNECT_TIMEOUT_MS = 25;
+	/**
+	 * Per-attempt {@link Socket#connect} timeout, in milliseconds. This budget has to cover a full TCP handshake, i.e.,
+	 * two traversals of the network, so it must not be set close to the round trip time of the link. Sizing this
+	 * generously is free while the worker is still starting up, as the kernel refuses a closed port immediately
+	 * (ECONNREFUSED), so the budget only applies once a handshake is actually in flight. 2s also covers one lost SYN,
+	 * which Linux retransmits after ~1s.
+	 */
+	private static final int CONNECT_TIMEOUT_MS = 2000;
 
 	/**
 	 * Minimum value applied to the caller-supplied {@code timeoutMs}. The wait returns as soon as the
@@ -76,7 +80,7 @@ public final class FederatedWorkerUtils {
 				throw new RuntimeException(
 					"Federated " + workerKind + " on port " + port + " died before becoming ready.");
 			}
-			if(tryConnect(port)) {
+			if(tryConnect(port, deadline)) {
 				return;
 			}
 			sleepQuietly();
@@ -145,7 +149,9 @@ public final class FederatedWorkerUtils {
 		final boolean[] ready = new boolean[ports.length];
 		int remaining = ports.length;
 		while(remaining > 0 && System.currentTimeMillis() < deadline) {
-			for(int i = 0; i < ports.length; i++) {
+			// the deadline is rechecked per port, since a sweep over many ports can now spend up to
+			// CONNECT_TIMEOUT_MS on each of them
+			for(int i = 0; i < ports.length && System.currentTimeMillis() < deadline; i++) {
 				if(ready[i]) {
 					continue;
 				}
@@ -153,7 +159,7 @@ public final class FederatedWorkerUtils {
 					throw new RuntimeException("Federated " + workerKind + " on port " + ports[i]
 						+ " died before becoming ready.");
 				}
-				if(tryConnect(ports[i])) {
+				if(tryConnect(ports[i], deadline)) {
 					ready[i] = true;
 					remaining--;
 				}
@@ -174,14 +180,31 @@ public final class FederatedWorkerUtils {
 		}
 	}
 
-	private static boolean tryConnect(int port) {
+	private static boolean tryConnect(int port, long deadline) {
+		final int timeout = attemptTimeout(deadline - System.currentTimeMillis());
+		if(timeout == 0) // out of time, do not start another attempt
+			return false;
 		try(Socket s = new Socket()) {
-			s.connect(new InetSocketAddress("localhost", port), CONNECT_TIMEOUT_MS);
+			s.connect(new InetSocketAddress("localhost", port), timeout);
 			return true;
 		}
-		catch(IOException e) {
+		catch(IOException e) { // closed port, or a handshake that outlasted the budget
 			return false;
 		}
+	}
+
+	/**
+	 * Budget for a single connect attempt, capped by the time left until the overall deadline so that one slow attempt
+	 * cannot substantially exceed the limit.
+	 *
+	 * @param remainingMs time left until the deadline, in ms
+	 * @return the timeout to pass to {@link Socket#connect}, or 0 if no attempt should be made. Never returns 0 while
+	 *         time is left, because {@code connect} reads a timeout of 0 as 'infinite'.
+	 */
+	public static int attemptTimeout(long remainingMs) {
+		if(remainingMs <= 0)
+			return 0;
+		return (int) Math.min(CONNECT_TIMEOUT_MS, remainingMs);
 	}
 
 	private static void sleepQuietly() {
