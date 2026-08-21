@@ -25,10 +25,11 @@ import java.net.Socket;
 import java.util.function.BooleanSupplier;
 
 /**
- * Test helpers that block until a federated worker is accepting TCP connections on its port. The federated worker opens
- * its TCP port after Netty's {@code bind().sync()} returns; a successful TCP connect to that port therefore indicates
- * that the worker is ready to accept requests. The methods here poll for that signal and throw {@link RuntimeException}
- * on timeout or if the underlying {@code Process}/{@code Thread} exits before the port becomes ready.
+ * Test helpers that block until a federated worker is accepting TCP connections on its port.
+ *
+ * The federated worker opens its TCP port after Netty's {@code bind().sync()} returns. The methods here poll for a
+ * successful TCP connection and throw {@link RuntimeException} on timeout or if the underlying
+ * {@code Process}/{@code Thread} exits before the port becomes ready.
  */
 public final class FederatedWorkerUtils {
 
@@ -36,20 +37,14 @@ public final class FederatedWorkerUtils {
 	private static final int POLL_INTERVAL_MS = 25;
 
 	/**
-	 * Per-attempt {@link Socket#connect} timeout, in milliseconds. This budget has to cover a full TCP handshake, i.e.,
-	 * two traversals of the network, so it must not be set close to the round trip time of the link. Sizing this
-	 * generously is free while the worker is still starting up, as the kernel refuses a closed port immediately
-	 * (ECONNREFUSED), so the budget only applies once a handshake is actually in flight. 2s also covers one lost SYN,
-	 * which Linux retransmits after ~1s.
+	 * Per-attempt {@link Socket#connect} timeout, in milliseconds. Covers a full TCP handshake, so it must not be close
+	 * to the round trip time of the link.
 	 */
 	private static final int CONNECT_TIMEOUT_MS = 2000;
 
 	/**
-	 * Minimum value applied to the caller-supplied {@code timeoutMs}. The wait returns as soon as the
-	 * worker accepts a connection, so this only affects the upper bound used when a worker never becomes
-	 * ready. Set to 60s to accommodate cold JVM startup on heavily contended CI runners: tests starting
-	 * four workers in parallel can have all four still pending after 30s when the runner is CPU-starved,
-	 * and burning a surefire retry costs more wall time than padding this clamp.
+	 * Minimum value applied to the caller-supplied {@code timeoutMs}, returns as soon as the worker accepts a
+	 * connection.
 	 */
 	private static final int MIN_TIMEOUT_MS = 60_000;
 
@@ -100,9 +95,8 @@ public final class FederatedWorkerUtils {
 	}
 
 	/**
-	 * Block until every listed federated worker is accepting TCP connections. All ports are polled in
-	 * one shared loop, so the wall-clock wait is bounded by the slowest worker rather than the sum of
-	 * individual waits.
+	 * Block until every listed federated worker is accepting TCP connections. All ports are polled in one shared loop,
+	 * so the wall-clock wait is bounded by the slowest worker.
 	 *
 	 * @param ports     ports the workers are expected to bind
 	 * @param timeoutMs upper bound on the wait, in ms; raised to {@link #MIN_TIMEOUT_MS} if smaller
@@ -138,9 +132,8 @@ public final class FederatedWorkerUtils {
 	}
 
 	/**
-	 * Bulk variant taking a per-index liveness predicate so callers can plug in either {@code Process}
-	 * or {@code Thread} liveness. Each port flips to ready as soon as it accepts a connection; the loop
-	 * yields between sweeps so a still-pending worker is not starved by repeated probes on the same CPU.
+	 * Bulk variant taking a per-index liveness predicate so callers can plug in either {@code Process} or
+	 * {@code Thread} liveness. Each port flips to ready as soon as it accepts a connection.
 	 */
 	public static void waitForWorkers(int[] ports, int timeoutMs, java.util.function.IntPredicate aliveCheck,
 		String workerKind) {
@@ -149,8 +142,7 @@ public final class FederatedWorkerUtils {
 		final boolean[] ready = new boolean[ports.length];
 		int remaining = ports.length;
 		while(remaining > 0 && System.currentTimeMillis() < deadline) {
-			// the deadline is rechecked per port, since a sweep over many ports can now spend up to
-			// CONNECT_TIMEOUT_MS on each of them
+			// recheck the deadline per port, a sweep can spend up to CONNECT_TIMEOUT_MS on each of them
 			for(int i = 0; i < ports.length && System.currentTimeMillis() < deadline; i++) {
 				if(ready[i]) {
 					continue;
@@ -181,30 +173,16 @@ public final class FederatedWorkerUtils {
 	}
 
 	private static boolean tryConnect(int port, long deadline) {
-		final int timeout = attemptTimeout(deadline - System.currentTimeMillis());
-		if(timeout == 0) // out of time, do not start another attempt
+		final long remaining = deadline - System.currentTimeMillis();
+		if(remaining <= 0) // out of time => connect reads a timeout of 0 as "infinite"
 			return false;
 		try(Socket s = new Socket()) {
-			s.connect(new InetSocketAddress("localhost", port), timeout);
+			s.connect(new InetSocketAddress("localhost", port), (int) Math.min(CONNECT_TIMEOUT_MS, remaining));
 			return true;
 		}
 		catch(IOException e) { // closed port, or a handshake that outlasted the budget
 			return false;
 		}
-	}
-
-	/**
-	 * Budget for a single connect attempt, capped by the time left until the overall deadline so that one slow attempt
-	 * cannot substantially exceed the limit.
-	 *
-	 * @param remainingMs time left until the deadline, in ms
-	 * @return the timeout to pass to {@link Socket#connect}, or 0 if no attempt should be made. Never returns 0 while
-	 *         time is left, because {@code connect} reads a timeout of 0 as 'infinite'.
-	 */
-	public static int attemptTimeout(long remainingMs) {
-		if(remainingMs <= 0)
-			return 0;
-		return (int) Math.min(CONNECT_TIMEOUT_MS, remainingMs);
 	}
 
 	private static void sleepQuietly() {
